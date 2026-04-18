@@ -1082,8 +1082,8 @@ async def _show_address_confirmation(update: Update, context: ContextTypes.DEFAU
             f"🇺🇸 State: {context.user_data['state']}\n"
             f"📍 ZIP: {context.user_data['zip']}\n\n"
             f"🛒 <b>Your Cart:</b>\n{cart_summary_html}\n\n"
-            f"      <b>Subtotal: ${subtotal:.2f}</b>\n"
-            f"      {promo_str}"
+            f"    {promo_str}"
+            f"    <b>Subtotal: ${subtotal:.2f}</b>\n"
             f"🚚 Shipping: ${SHIPPING_COST:.2f}\n"
             f"💰 <b>Total: ${total:.2f}</b>\n\n"
             f"🔹 <i>Type /cancel to exit this order</i>"
@@ -1095,7 +1095,6 @@ async def _show_address_confirmation(update: Update, context: ContextTypes.DEFAU
         ]),
     )
 # ── Final review + order creation ─────────────────────────────────────────────
-
 async def _proceed_to_final_review(update: Update, context: ContextTypes.DEFAULT_TYPE, via_callback: bool = False):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
@@ -1105,25 +1104,15 @@ async def _proceed_to_final_review(update: Update, context: ContextTypes.DEFAULT
     
     promo_data   = context.user_data.get("promo_data")
     promo_disc   = 0.0
-    promo_str    = ""
     
-    # Calculate final discount based on whether it is percent or flat
     if promo_data:
         if promo_data["type"] == "percent":
             promo_disc = raw_subtotal * (promo_data["value"] / 100.0)
-            pct = int(promo_data['value'])
-            promo_str = f"🎫 <b>Promo Applied ({pct}%): -${promo_disc:.2f}</b>\n"
         else:
             promo_disc = promo_data["value"]
-            promo_str = f"🎫 <b>Promo Applied: -${promo_disc:.2f}</b>\n"
 
-    # Make sure we don't refund them if the flat code is larger than their cart!
     promo_disc = min(promo_disc, raw_subtotal)
-    
-    subtotal = raw_subtotal - promo_disc
-    total    = subtotal + SHIPPING_COST
-
-
+    final_subtotal = raw_subtotal - promo_disc
     order_id = _gen_order_id()
 
     customer = {
@@ -1142,7 +1131,7 @@ async def _proceed_to_final_review(update: Update, context: ContextTypes.DEFAULT
         "order_id": order_id,
         "customer": customer,
         "cart":     cart,
-        "subtotal": subtotal,
+        "subtotal": final_subtotal, # Save the discounted subtotal
     }
     context.user_data["step"] = STEP_PAYMENT
 
@@ -1152,18 +1141,17 @@ async def _proceed_to_final_review(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
 
-    total = subtotal + SHIPPING_COST
+    total = final_subtotal + SHIPPING_COST
 
     await context.bot.send_message(
         chat_id,
-        f"✅ *Order #{order_id} Created!*\n\n"
-        f"💵 Total: *${total:.2f}* (incl. $20 shipping)\n\n"
+        f"✅ <b>Order #{order_id} Created!</b>\n\n"
+        f"💵 Total: <b>${total:.2f}</b> (incl. $20 shipping)\n\n"
         f"Please select your preferred payment method.\n"
-        f"⚠️ *Once selected, your choice is locked for {PAYMENT_TIMEOUT_MINUTES} minutes.*",
-        parse_mode="Markdown",
+        f"⚠️ <b>Once selected, your choice is locked for {PAYMENT_TIMEOUT_MINUTES} minutes.</b>",
+        parse_mode="HTML",
         reply_markup=_payment_keyboard(),
     )
-
 
 # ── Payment complete ───────────────────────────────────────────────────────────
 
