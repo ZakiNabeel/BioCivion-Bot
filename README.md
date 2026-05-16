@@ -2,7 +2,8 @@
 
 > A fully automated Telegram store bot built with Python — handling orders, payments, discounts, and admin tracking without manual intervention.
 
-![BioCivion Bot Banner](biocivion_screenshot2.png)
+<img width="1545" height="862" alt="image" src="https://github.com/user-attachments/assets/6fa32a23-bb88-4d1e-ae7d-49a60472feca" />
+
 
 ---
 
