@@ -66,7 +66,7 @@ from payments import (
     create_stripe_session,
     cancel_stripe_session,
     get_zelle_message,
-    SHIPPING,
+    shipping_fee,
 )
 from locks import reserve, release, release_all, get_available, get_user_reserved
 from config import TELEGRAM_TOKEN, PAYMENT_TIMEOUT_MINUTES, ADMIN_EMAIL, SMTP_SERVER, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD
@@ -77,7 +77,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SHIPPING_COST = 20.00
 ENTRY_TIMEOUT = 120                            # 2 minutes per data-entry step
 PAYMENT_TIMEOUT = PAYMENT_TIMEOUT_MINUTES * 60  # 20 minutes default
 
@@ -111,7 +110,7 @@ TERMS_AND_CONDITIONS = (
 HEADS_UP = (
     "✨⚠️ *Just a heads\\-up, before we continue:*\n\n"
     "📍 Shipping is restricted to *US/North America addresses* only\n"
-    "📦 Flat rate shipping fee is *$20*\n"
+    "📦 Flat rate shipping fee is *$20*; FREE Shipping on orders *$300\\+*\\.\n"
     "💳 We accept *Zelle*, *Square*, or *Stripe*\n"
     "🕒 Orders completed Mon\\-Fri before *1PM EST* ship same day\n"
     "🗓️ Orders *after 1PM EST* or on weekends ship the *next business day*\n"
@@ -659,7 +658,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
 
             subtotal = _cart_subtotal(cart)
-            total    = subtotal + SHIPPING_COST
+            ship     = shipping_fee(subtotal)
+            total    = subtotal + ship
+            free_line = "📦 ✔️ *Free Shipping!*\n" if ship == 0 else ""
             try:
                 await query.message.delete()
             except Exception:
@@ -670,7 +671,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔥 The item(s) below are in high demand and are being updated:\n{problem_lines}\n\n"
                 f"✅ We removed those item(s). Would you like to continue checkout with the updated order?\n\n"
                 f"🛒 *Updated Cart:*\n{_cart_summary(cart)}\n\n"
-                f"💰 Subtotal: ${subtotal:.2f}\n🚚 Shipping: ${SHIPPING_COST:.2f}\n💵 *Total: ${total:.2f}*",
+                f"{free_line}💰 Subtotal: ${subtotal:.2f}\n🚚 Shipping: ${ship:.2f}\n💵 *Total: ${total:.2f}*",
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Complete My Checkout", callback_data="checkout")],
@@ -842,8 +843,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         subtotal = _cart_subtotal(cart)
-        total    = subtotal + SHIPPING_COST
-        
+        ship     = shipping_fee(subtotal)
+        total    = subtotal + ship
+        free_line = "📦 ✔️ *Free Shipping!*\n" if ship == 0 else ""
+
         p_text = ", ".join(problem_names) if problem_names else "The item"
 
         try:
@@ -855,8 +858,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id,
             f"Final Review: Your updated order is shown below. {p_text} has been removed. Ready to proceed?\n\n"
             f"🛒 *Updated Cart:*\n{_cart_summary(cart)}\n\n"
-            f"Subtotal: ${subtotal:.2f}\n"
-            f"Shipping: ${SHIPPING_COST:.2f}\n"
+            f"{free_line}Subtotal: ${subtotal:.2f}\n"
+            f"Shipping: ${ship:.2f}\n"
             f"Total: ${total:.2f}",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
@@ -881,7 +884,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         username = update.effective_user.username
         customer = confirmed["customer"]
-        total    = confirmed["subtotal"] + SHIPPING_COST
+        total    = confirmed["subtotal"] + shipping_fee(confirmed["subtotal"])
 
 
         # Create Square link
@@ -907,7 +910,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id,
             f"☑️ *Square Payment — Order #{confirmed['order_id']}*\n\n"
-            f"💵 Total: *${total:.2f}* (incl. $20 shipping)\n\n"
+            f"💵 Total: *${total:.2f}* (shipping included)\n\n"
             f"🔗 Click below to complete your payment:\n{result['url']}\n\n"
             f"📌 *Supports:* Credit/Debit Card, Apple Pay, Bitcoin\n\n"
             f"⏳ *You have {PAYMENT_TIMEOUT_MINUTES} minutes to complete payment.*\n"
@@ -936,7 +939,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         username = update.effective_user.username
         customer = confirmed["customer"]
-        total    = confirmed["subtotal"] + SHIPPING_COST
+        total    = confirmed["subtotal"] + shipping_fee(confirmed["subtotal"])
         result = create_stripe_session(confirmed["order_id"], confirmed["cart"], confirmed["subtotal"])
 
         if not result["url"]:
@@ -958,7 +961,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id,
             f"✅ <b>Stripe Payment — Order #{confirmed['order_id']}</b>\n\n"
-            f"💵 Total: <b>${total:.2f}</b> (incl. $20 shipping)\n\n"
+            f"💵 Total: <b>${total:.2f}</b> (shipping included)\n\n"
             f"🔗 Click below to complete your payment:\n{result['url']}\n\n"
             f"📌 <b>Supports:</b> Credit/Debit Card, Google Pay, USDC Stablecoin\n\n"
             f"⏳ <b>You have {PAYMENT_TIMEOUT_MINUTES} minutes to complete payment.</b>\n"
@@ -987,7 +990,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         username = update.effective_user.username
         customer = confirmed["customer"]
-        total    = confirmed["subtotal"] + SHIPPING_COST
+        total    = confirmed["subtotal"] + shipping_fee(confirmed["subtotal"])
 
 
 
@@ -1061,7 +1064,9 @@ async def _show_address_confirmation(update: Update, context: ContextTypes.DEFAU
     promo_disc = min(promo_disc, raw_subtotal)
     
     subtotal = raw_subtotal - promo_disc
-    total    = subtotal + SHIPPING_COST
+    ship     = shipping_fee(subtotal)
+    total    = subtotal + ship
+    free_line = "📦 ✔️ <b>Free Shipping!</b>\n" if ship == 0 else ""
 
 
     # Create a line of text to show the discount (if they have one)
@@ -1083,8 +1088,9 @@ async def _show_address_confirmation(update: Update, context: ContextTypes.DEFAU
             f"📍 ZIP: {context.user_data['zip']}\n\n"
             f"🛒 <b>Your Cart:</b>\n{cart_summary_html}\n\n"
             f"    {promo_str}"
+            f"{free_line}"
             f"    <b>Subtotal: ${subtotal:.2f}</b>\n"
-            f"🚚 Shipping: ${SHIPPING_COST:.2f}\n"
+            f"🚚 Shipping: ${ship:.2f}\n"
             f"💰 <b>Total: ${total:.2f}</b>\n\n"
             f"🔹 <i>Type /cancel to exit this order</i>"
         ),
@@ -1141,12 +1147,12 @@ async def _proceed_to_final_review(update: Update, context: ContextTypes.DEFAULT
         except Exception:
             pass
 
-    total = final_subtotal + SHIPPING_COST
+    total = final_subtotal + shipping_fee(final_subtotal)
 
     await context.bot.send_message(
         chat_id,
         f"✅ <b>Order #{order_id} Created!</b>\n\n"
-        f"💵 Total: <b>${total:.2f}</b> (incl. $20 shipping)\n\n"
+        f"💵 Total: <b>${total:.2f}</b> (shipping included)\n\n"
         f"Please select your preferred payment method.\n"
         f"⚠️ <b>Once selected, your choice is locked for {PAYMENT_TIMEOUT_MINUTES} minutes.</b>",
         parse_mode="HTML",
@@ -1177,7 +1183,7 @@ async def _handle_payment_complete(update: Update, context: ContextTypes.DEFAULT
         return
 
     # 🟢 NEW: Log the order to Google Sheets ONLY AFTER the button is clicked!
-    total = confirmed["subtotal"] + SHIPPING_COST
+    total = confirmed["subtotal"] + shipping_fee(confirmed["subtotal"])
     
     for item in confirmed["cart"]:
             reduce_inventory(item["name"], item["qty"])
@@ -1429,7 +1435,9 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             job.schedule_removal()
 
         subtotal    = _cart_subtotal(cart)
-        total       = subtotal + SHIPPING_COST
+        ship        = shipping_fee(subtotal)
+        total       = subtotal + ship
+        free_line   = "📦 ✔️ *Free Shipping!*\n" if ship == 0 else ""
         summary     = _cart_summary(cart)
         
         # Calculate overall cart discount for the success message
@@ -1453,8 +1461,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"✅ *Added to cart!*{disc_notice}\n\n"
             f"🛒 *Your Cart:*\n{summary}\n\n"
-            f"   *Subtotal: ${subtotal:.2f}*\n"
-            f"🚚 Shipping: ${SHIPPING_COST:.2f}\n"
+            f"{free_line}   *Subtotal: ${subtotal:.2f}*\n"
+            f"🚚 Shipping: ${ship:.2f}\n"
             f"💵 *Total: ${total:.2f}*",
             parse_mode="Markdown",
             reply_markup=ReplyKeyboardRemove(),

@@ -28,6 +28,23 @@ from config import (
 logger = logging.getLogger(__name__)
 
 SHIPPING = 20.00
+FREE_SHIP_THRESHOLD = 300.00
+
+
+def shipping_fee(subtotal: float) -> float:
+    """Flat $20, or free once the (discounted) subtotal reaches the threshold."""
+    return 0.0 if subtotal >= FREE_SHIP_THRESHOLD else SHIPPING
+
+
+def _self_check():
+    assert shipping_fee(299.99) == SHIPPING
+    assert shipping_fee(300.00) == 0.0
+    assert shipping_fee(467.50) == 0.0
+
+
+if __name__ == "__main__":
+    _self_check()
+    print("shipping_fee ok")
 
 
 # ── Square ─────────────────────────────────────────────────────────────────────
@@ -41,7 +58,7 @@ def create_square_link(order_id: str, cart: list[dict], subtotal: float) -> dict
         import requests, uuid
 
         # Combine everything into one total price
-        total_cents = int(round((subtotal + SHIPPING) * 100))
+        total_cents = int(round((subtotal + shipping_fee(subtotal)) * 100))
 
         base_url = (
             "https://connect.squareupsandbox.com"
@@ -144,7 +161,7 @@ def create_stripe_session(order_id: str, cart: list[dict], subtotal: float) -> d
         stripe.api_key = STRIPE_SECRET_KEY
 
         # Combine everything into one total price
-        total_cents = int(round((subtotal + SHIPPING) * 100))
+        total_cents = int(round((subtotal + shipping_fee(subtotal)) * 100))
 
         # Single line item as requested
         line_items = [{
@@ -196,7 +213,7 @@ def cancel_stripe_session(session_id: str) -> bool:
 # ── Zelle ──────────────────────────────────────────────────────────────────────
 
 def get_zelle_message(order_id: str, customer: dict, cart: list[dict], subtotal: float) -> str:
-    total    = subtotal + SHIPPING
+    total    = subtotal + shipping_fee(subtotal)
     apt_line = f", Unit {customer['apt']}" if customer.get("apt") else ""
     address  = f"{customer['street']}{apt_line}, {customer['city']}, {customer['state']}"
 
@@ -208,7 +225,7 @@ def get_zelle_message(order_id: str, customer: dict, cart: list[dict], subtotal:
         f"*Order ID:* {order_id}\n"
         f"*Full Name:* {customer['first_name']} {customer['last_name']}\n"
         f"*Your Address:* {address}\n\n"
-        f"💵 *Total Due: ${total:.2f}* (incl. $20 shipping)\n\n"
+        f"💵 *Total Due: ${total:.2f}* (shipping included)\n\n"
         f"⏳ *Action Required:*\n"
         f"Please click *'✅ Payment Complete'* after making Zelle payment within *20 minutes* to secure your order.\n"
         f"Do not put anything in the notes/memo section. Any notes or emojis will result in *immediate* order cancellation."
