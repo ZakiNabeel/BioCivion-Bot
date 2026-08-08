@@ -559,9 +559,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"✅ *{item['name']}*\n\n"
             f"💰 Price: ${item['price']:.2f} each\n"
             f"📦 Stock Quantity: {available}\n\n"
-            f"🔢 How many would you like to order?\n"
-            f"Please enter a number between 1 and {available}\n\n"
-            f"_Or click the button below to continue shopping._",
+            f"🔢 *How* many would you like to order?\n"
+            f"*PLEASE ENTER A NUMBER* between 1 and {available}\n\n"
+            f"_Or click the cancel button below to 'cancel' order._",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🛍️ Continue Shopping", callback_data="continue_shopping")],
