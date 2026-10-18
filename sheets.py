@@ -89,6 +89,26 @@ def get_items() -> list[dict]:
         return []
 
 
+def get_lab_fee() -> float:
+    """
+    Flat per-order Lab Fee, editable in the Menu tab: put 'Lab Fee' in any cell
+    and the dollar amount in the cell right next to it. Returns 0.0 if missing.
+    """
+    try:
+        rows = (
+            _get_service().spreadsheets().values()
+            .get(spreadsheetId=SPREADSHEET_ID, range=f"'{SHEET_NAME}'!A1:Z", valueRenderOption="FORMATTED_VALUE")
+            .execute().get("values", [])
+        )
+        for row in rows:
+            for j, cell in enumerate(row[:-1]):
+                if str(cell).strip().lower() == "lab fee":
+                    return max(0.0, float(str(row[j + 1]).replace("$", "").replace(",", "").strip()))
+    except Exception as e:
+        logger.error(f"Error fetching Lab Fee: {e}")
+    return 0.0
+
+
 def reduce_inventory(item_name: str, qty: int = 1) -> bool:
     """Reduce quantity of item_name by qty. Returns True on success."""
     try:

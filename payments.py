@@ -49,7 +49,7 @@ if __name__ == "__main__":
 
 # ── Square ─────────────────────────────────────────────────────────────────────
 
-def create_square_link(order_id: str, cart: list[dict], subtotal: float) -> dict:
+def create_square_link(order_id: str, cart: list[dict], subtotal: float, lab_fee: float = 0.0) -> dict:
     """
     Create a Square Payment Link.
     Returns {"url": str, "link_id": str} on success, or {"url": None, "link_id": None} on failure.
@@ -58,7 +58,7 @@ def create_square_link(order_id: str, cart: list[dict], subtotal: float) -> dict
         import requests, uuid
 
         # Combine everything into one total price
-        total_cents = int(round((subtotal + shipping_fee(subtotal)) * 100))
+        total_cents = int(round((subtotal + shipping_fee(subtotal) + lab_fee) * 100))
 
         base_url = (
             "https://connect.squareupsandbox.com"
@@ -151,7 +151,7 @@ def cancel_square_link(link_id: str) -> bool:
 
 # ── Stripe ─────────────────────────────────────────────────────────────────────
 
-def create_stripe_session(order_id: str, cart: list[dict], subtotal: float) -> dict:
+def create_stripe_session(order_id: str, cart: list[dict], subtotal: float, lab_fee: float = 0.0) -> dict:
     """
     Create a Stripe Checkout Session.
     Returns {"url": str, "session_id": str} on success, or {"url": None, "session_id": None} on failure.
@@ -161,7 +161,7 @@ def create_stripe_session(order_id: str, cart: list[dict], subtotal: float) -> d
         stripe.api_key = STRIPE_SECRET_KEY
 
         # Combine everything into one total price
-        total_cents = int(round((subtotal + shipping_fee(subtotal)) * 100))
+        total_cents = int(round((subtotal + shipping_fee(subtotal) + lab_fee) * 100))
 
         # Single line item as requested
         line_items = [{
@@ -212,8 +212,8 @@ def cancel_stripe_session(session_id: str) -> bool:
 
 # ── Zelle ──────────────────────────────────────────────────────────────────────
 
-def get_zelle_message(order_id: str, customer: dict, cart: list[dict], subtotal: float) -> str:
-    total    = subtotal + shipping_fee(subtotal)
+def get_zelle_message(order_id: str, customer: dict, cart: list[dict], subtotal: float, lab_fee: float = 0.0) -> str:
+    total    = subtotal + shipping_fee(subtotal) + lab_fee
     apt_line = f", Unit {customer['apt']}" if customer.get("apt") else ""
     address  = f"{customer['street']}{apt_line}, {customer['city']}, {customer['state']}"
 
