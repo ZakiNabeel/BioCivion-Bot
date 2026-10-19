@@ -1,2 +1,4 @@
 config.py
 credentials.json
+
+__pycache__/
