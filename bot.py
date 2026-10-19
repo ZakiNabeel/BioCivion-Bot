@@ -142,8 +142,12 @@ STEP_CANCEL_LOOKUP = "cancel_lookup"
 # ── Discount helpers ───────────────────────────────────────────────────────────
 # ── Discount helpers ───────────────────────────────────────────────────────────
 
+def _is_fee(item: dict) -> bool:
+    """'Lab Fee' rows in the menu are charges, not products: no volume discount."""
+    return item["name"].lower().startswith("lab fee")
+
 def _cart_total_qty(cart: list[dict]) -> int:
-    return sum(item["qty"] for item in cart)
+    return sum(item["qty"] for item in cart if not _is_fee(item))
 
 def _get_cart_discount_rate(cart: list[dict]) -> float:
     total_qty = _cart_total_qty(cart)
@@ -163,7 +167,8 @@ def _cart_summary(cart: list[dict]) -> str:
         orig = item["original_price"]
         qty = item["qty"]
         line_total = orig * qty
-        raw_subtotal += line_total
+        if not _is_fee(item):
+            raw_subtotal += line_total
         lines.append(f"• {qty}x {item['name']} - ${orig:.2f} each (${line_total:.2f})")
     
     rate = _get_cart_discount_rate(cart)
@@ -175,9 +180,10 @@ def _cart_summary(cart: list[dict]) -> str:
     return "\n".join(lines)
 
 def _cart_subtotal(cart: list[dict]) -> float:
-    raw_subtotal = sum(i["original_price"] * i["qty"] for i in cart)
+    products = sum(i["original_price"] * i["qty"] for i in cart if not _is_fee(i))
+    fees     = sum(i["original_price"] * i["qty"] for i in cart if _is_fee(i))
     rate = _get_cart_discount_rate(cart)
-    return round(raw_subtotal * (1.0 - rate), 2)
+    return round(products * (1.0 - rate) + fees, 2)
 
 def _gen_order_id() -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -1197,7 +1203,8 @@ async def _handle_payment_complete(update: Update, context: ContextTypes.DEFAULT
     log_new_order(
         order_id=confirmed["order_id"],
         chat_id=chat_id,
-        username=f"@{username}" if username else "",
+        # @username is optional in Telegram; fall back to their profile name
+        username=f"@{username}" if username else f"{update.effective_user.full_name} (no @username)",
         customer=confirmed["customer"],
         cart=confirmed["cart"],
         final_price=total,
