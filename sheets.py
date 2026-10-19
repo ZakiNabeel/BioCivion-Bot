@@ -91,8 +91,8 @@ def get_items() -> list[dict]:
 
 def get_lab_fee() -> float:
     """
-    Flat per-order Lab Fee, editable in the Menu tab: put 'Lab Fee' as a header
-    in any cell and the dollar amount in the cell directly below it. Returns 0.0 if missing.
+    Flat per-order Lab Fee, editable in the Menu tab: put 'Lab Fee' in any cell
+    and the dollar amount in the cell right next to it. Returns 0.0 if missing.
     """
     try:
         rows = (
@@ -100,11 +100,10 @@ def get_lab_fee() -> float:
             .get(spreadsheetId=SPREADSHEET_ID, range=f"'{SHEET_NAME}'!A1:Z", valueRenderOption="FORMATTED_VALUE")
             .execute().get("values", [])
         )
-        for r, row in enumerate(rows[:-1]):
-            for j, cell in enumerate(row):
+        for row in rows:
+            for j, cell in enumerate(row[:-1]):
                 if str(cell).strip().lower() == "lab fee":
-                    val = rows[r + 1][j]
-                    return max(0.0, float(str(val).replace("$", "").replace(",", "").strip()))
+                    return max(0.0, float(str(row[j + 1]).replace("$", "").replace(",", "").strip()))
     except Exception as e:
         logger.error(f"Error fetching Lab Fee: {e}")
     return 0.0
